@@ -32,4 +32,13 @@ bool elf_veirfy_is_supported_elf_file(Elf64_Ehdr *ehdr);
  */
 enum loader_status elf_map_segment(Elf64_Phdr *ph, void *elf_file, size_t entry_point);
 
+/**
+ * @brief Jump to the entry point of the ELF file.
+ * 
+ * This function prepares the stack and jumps to the entry point of the ELF file.
+ * It sets up the arguments, environment variables, and auxiliary vectors as required by the ELF specification.
+ *
+ * @param entry The entry point address of the ELF file.
+ */
+void elf_jump_to_entry(uint64_t entry);
 #endif /* __ELF_INTERNAL_H__ */

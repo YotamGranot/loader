@@ -10,6 +10,16 @@
 extern char **environ;
 
 typedef int (*entry_point_t)(void);
+typedef struct { uint64_t a_type; uint64_t a_val; } Auxv;
+void *__libc_stack_end = NULL;
+void *__dl_random = NULL;
+
+// Allocate 16 bytes for dl_random
+static uint8_t fake_dl_random[16] = { 
+    1, 2, 3, 4, 5, 6, 7, 8,
+    9, 10, 11, 12, 13, 14,
+    15, 16
+};
 
 enum loader_status ELF_load(const char *filename)
 {
@@ -65,8 +75,6 @@ enum loader_status ELF_load(const char *filename)
         goto lbl_cleanup;
     }
 
-
-    /* For each Program header check if it should be loaded */
     phdrs = (Elf64_Phdr *)((char *)file + ehdr->e_phoff);
     for (int i = 0; i < ehdr->e_phnum; ++i)
     {
@@ -84,7 +92,7 @@ enum loader_status ELF_load(const char *filename)
         }
     }
 
-    ((entry_point_t)(ehdr->e_entry))();
+    elf_jump_to_entry(ehdr->e_entry);
 lbl_cleanup:
     munmap(file, st.st_size);
     CLOSE(fd);
@@ -155,4 +163,98 @@ enum loader_status elf_map_segment(Elf64_Phdr *ph, void *elf_file, size_t entry_
     status = LOADER_STATUS_OK;
 lbl_cleanup:
     return status;
+}
+
+
+void elf_jump_to_entry(uint64_t entry)
+{
+    const char *argv[] = { "program", "arg1", "arg2", NULL };
+    const char *envp[] = { "PATH=/usr/bin", "USER=tester", NULL };
+    Auxv auxv[] = {
+        { AT_PAGESZ, 4096 },
+        { AT_UID, getuid() },
+        { AT_EUID, geteuid() },
+        { AT_SECURE, 0 },
+        { AT_RANDOM, (uintptr_t)fake_dl_random },
+        { AT_NULL, 0 },  
+
+    };
+
+    int argc = 0;
+    while (argv[argc]) argc++;
+    int envc = 0;
+    while (envp[envc]) envc++;
+    int auxc = sizeof(auxv) / sizeof(auxv[0]);
+
+    size_t stack_size = 0x10000;
+    char *stack = mmap(NULL, stack_size, PROT_READ | PROT_WRITE,
+                       MAP_PRIVATE | MAP_ANONYMOUS | MAP_STACK, -1, 0);
+    if (stack == MAP_FAILED) {
+        perror("mmap stack");
+        exit(1);
+    }
+
+    char *sp = stack + stack_size;
+
+    // Copy strings to stack
+    char **argv_on_stack = alloca((argc + 1) * sizeof(char *));
+    char **envp_on_stack = alloca((envc + 1) * sizeof(char *));
+
+    for (int i = argc - 1; i >= 0; --i) {
+        size_t len = strlen(argv[i]) + 1;
+        sp -= len;
+        memcpy(sp, argv[i], len);
+        argv_on_stack[i] = sp;
+    }
+    argv_on_stack[argc] = NULL;
+
+    for (int i = envc - 1; i >= 0; --i) {
+        size_t len = strlen(envp[i]) + 1;
+        sp -= len;
+        memcpy(sp, envp[i], len);
+        envp_on_stack[i] = sp;
+    }
+    envp_on_stack[envc] = NULL;
+
+    sp = (char *)((uintptr_t)sp & ~0xF);
+
+    // Push auxv[]
+    for (int i = auxc - 1; i >= 0; --i) {
+        sp -= sizeof(Auxv);
+        memcpy(sp, &auxv[i], sizeof(Auxv));
+    }
+
+    // Push envp[]
+    sp -= sizeof(char *);
+    *(char **)sp = NULL;
+    for (int i = envc - 1; i >= 0; --i) {
+        sp -= sizeof(char *);
+        memcpy(sp, &envp_on_stack[i], sizeof(char *));
+    }
+
+    // Push argv[]
+    sp -= sizeof(char *);
+    *(char **)sp = NULL;
+    for (int i = argc - 1; i >= 0; --i) {
+        sp -= sizeof(char *);
+        memcpy(sp, &argv_on_stack[i], sizeof(char *));
+    }
+
+    // Push argc
+    sp -= sizeof(uint64_t);
+    *(uint64_t *)sp = argc;
+
+    sp = (char *)((uintptr_t)sp & ~0xF);
+    __libc_stack_end = sp;
+
+    /* This is needed because glibc checks this to see the stack is leagal */
+    __dl_random = (void *)(&fake_dl_random[0]);
+
+    __asm__ volatile(
+        "mov %0, %%rsp\n"
+        "xor %%rbp, %%rbp\n"
+        "jmp *%1\n"
+        :
+        : "r"(sp), "r"(entry)
+        : "memory");
 }
