@@ -10,17 +10,24 @@ endif()
 
 set(LOADER_DEBUG_C_FLAGS "-g" "-g3")
 set(LOADER_RELEASE_C_FLAGS "-Os")
+set(CMAKE_POSITION_INDEPENDENT_CODE OFF)
 
 set(LOADER_C_FLAGS 
   -Wall
   -Wextra
   -Werror
+  -no-pie
   "$<$<CONFIG:Debug>:${LOADER_DEBUG_C_FLAGS}>"
   "$<$<CONFIG:Release>:${LOADER_RELEASE_C_FLAGS}>"
 )
 
 set(LOADER_SOURCES
   main.c
+  src/elf/elf.c
+  src/elf/elf.h
+  src/elf/elf_internal.h
+  src/loader/common.h
+  src/loader/loader_status.h
 )
 
 set(LOADER_COMPILE_DEFINITIONS 
@@ -33,3 +40,6 @@ add_executable(loader ${LOADER_SOURCES})
 target_compile_options(loader PRIVATE ${LOADER_C_FLAGS})
 target_compile_definitions(loader PRIVATE ${LOADER_COMPILE_DEFINITIONS})
 
+target_include_directories(loader PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
