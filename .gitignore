@@ -1,1 +1,8 @@
 cmake-build*
+build/
+*.o
+*.a
+*.so
+*.out
+.vscode/
+.idea/
