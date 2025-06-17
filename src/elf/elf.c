@@ -1,3 +1,9 @@
+/**
+ * @file elf.c
+ * @brief Implementation of ELF (Executable and Linkable Format) loader.
+ * @author Yotam Granot
+ * @date 2025-06-16
+ */
 #include "loader/loader_status.h"
 #include "loader/common.h"
 #include "elf/elf_internal.h"
@@ -6,6 +12,7 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/auxv.h>
+
 
 extern char **environ;
 

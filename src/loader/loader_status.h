@@ -1,6 +1,8 @@
 /**
  * @file loader_status.h
  * @brief Header file for loader status management.
+ * @author Yotam Granot
+ * @date 2025-06-16
  */
 
 #ifndef __LOADER_STATUS_H__

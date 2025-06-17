@@ -1,3 +1,9 @@
+/**
+ * @file elf_internal.h
+ * @brief Internal header file for ELF (Executable and Linkable Format) loader.
+ * @author Yotam Granot
+ * @date 2025-06-16
+ */
 #ifndef __ELF_INTERNAL_H__
 #define __ELF_INTERNAL_H__
 
